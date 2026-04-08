@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>螢幕保護貼 瑕疵分析系統</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #111318;
+  --bg2: #181c23;
+  --bg3: #1f242e;
+  --bg4: #272d3a;
+  --border: rgba(255,255,255,0.09);
+  --border2: rgba(255,255,255,0.16);
+  --text: #f0f2f7;
+  --text2: #c8cdd9;
+  --text3: #8f96a8;
+  --accent: #f07060;
+  --accent2: #f5b55a;
+  --accent3: #60b8f5;
+  --accent4: #60d99a;
+  --mono: 'DM Mono', monospace;
+  --sans: 'Noto Sans TC', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6;min-height:100vh}
+.shell{display:flex;min-height:100vh}
+
+/* ─── Sidebar ─── */
+.sidebar{width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100}
+.logo{padding:22px 20px 18px;border-bottom:1px solid var(--border)}
+.logo-icon{width:30px;height:30px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;margin-bottom:10px}
+.logo-title{font-size:13px;font-weight:700;letter-spacing:0.02em;color:var(--text)}
+.logo-sub{font-size:11px;color:var(--text3);margin-top:2px;font-family:var(--mono);letter-spacing:0.04em}
+.nav{padding:16px 12px;flex:1;overflow-y:auto}
+.nav-label{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:0.12em;text-transform:uppercase;padding:0 8px;margin-bottom:6px;margin-top:14px}
+.nav-label:first-child{margin-top:0}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--text2);transition:all 0.15s;margin-bottom:2px;border:1px solid transparent;user-select:none}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:rgba(240,112,96,0.14);color:var(--accent);border-color:rgba(240,112,96,0.22)}
+.nav-dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:0.5;flex-shrink:0}
+.nav-item.active .nav-dot{opacity:1}
+.sidebar-footer{padding:14px 20px;border-top:1px solid var(--border);font-size:11px;color:var(--text3);font-family:var(--mono)}
+
+/* ─── Main ─── */
+.main{margin-left:220px;flex:1;min-width:0}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:13px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;gap:12px;flex-wrap:wrap}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.page-title{font-size:15px;font-weight:600;color:var(--text)}
+.breadcrumb{font-size:11px;color:var(--text3);font-family:var(--mono)}
+.filter-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.top-select{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--sans);font-size:12px;padding:5px 30px 5px 12px;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238f96a8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;transition:border-color 0.15s;min-width:88px}
+.top-select:hover{border-color:var(--accent3)}
+.top-select:focus{border-color:var(--accent3)}
+.top-select option{background:var(--bg3);color:var(--text)}
+.pill-group{display:flex;border:1px solid var(--border2);border-radius:8px;overflow:hidden}
+.pill{font-size:12px;padding:5px 13px;cursor:pointer;background:transparent;color:var(--text2);border:none;font-family:var(--sans);transition:all 0.15s;border-right:1px solid var(--border2)}
+.pill:last-child{border-right:none}
+.pill:hover{background:var(--bg3);color:var(--text)}
+.pill.active{background:var(--accent);color:#fff;font-weight:600}
+
+/* ─── Content ─── */
+.content{padding:24px 28px}
+.section{display:none}
+.section.active{display:block}
+.section-header{margin-bottom:22px}
+.section-header h2{font-size:19px;font-weight:700;color:var(--text);margin-bottom:4px}
+.section-header p{font-size:13px;color:var(--text3)}
+
+/* ─── KPI ─── */
+.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:22px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.kpi.red::before{background:var(--accent)}
+.kpi.amber::before{background:var(--accent2)}
+.kpi.blue::before{background:var(--accent3)}
+.kpi.green::before{background:var(--accent4)}
+.kpi.gray::before{background:var(--text3)}
+.kpi-label{font-size:11px;color:var(--text3);margin-bottom:8px;letter-spacing:0.03em;font-weight:500}
+.kpi-val{font-size:26px;font-weight:700;font-family:var(--mono);letter-spacing:-0.02em;color:var(--text)}
+.kpi-val.red{color:var(--accent)}
+.kpi-val.amber{color:var(--accent2)}
+.kpi-val.blue{color:var(--accent3)}
+.kpi-val.green{color:var(--accent4)}
+.kpi-sub{font-size:11px;color:var(--text3);margin-top:4px;font-family:var(--mono)}
+
+/* ─── Panels ─── */
+.panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:0}
+.panel-head{padding:13px 18px 11px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:12px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--text2)}
+.panel-tag{font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:4px}
+.panel-body{padding:16px 18px}
+.panel-full{margin-bottom:14px}
+
+/* ─── Bars ─── */
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.bar-lbl{font-size:12px;color:var(--text2);min-width:115px;max-width:115px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-track{flex:1;height:5px;background:var(--bg4);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width 0.5s cubic-bezier(.4,0,.2,1)}
+.fill-red{background:var(--accent)}
+.fill-amber{background:var(--accent2)}
+.fill-blue{background:var(--accent3)}
+.fill-green{background:var(--accent4)}
+.fill-gray{background:var(--text3)}
+.bar-n{font-size:12px;color:var(--text2);font-family:var(--mono);min-width:34px;text-align:right}
+.bar-pct{font-size:11px;color:var(--text3);font-family:var(--mono);min-width:32px;text-align:right}
+
+/* ─── Insight ─── */
+.insight-box{background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--accent3);border-radius:12px;padding:15px 20px;margin-bottom:22px}
+.insight-title{font-size:10px;color:var(--accent3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.09em;margin-bottom:10px;font-weight:600}
+.insight-list{list-style:none}
+.insight-list li{font-size:13px;color:var(--text2);padding:5px 0 5px 18px;position:relative;line-height:1.65;border-bottom:1px solid var(--border)}
+.insight-list li:last-child{border-bottom:none}
+.insight-list li::before{content:'→';position:absolute;left:0;color:var(--accent3);font-size:12px;top:6px}
+.insight-list li strong{color:var(--text);font-weight:600}
+
+/* ─── Trend ─── */
+.trend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:22px}
+.trend-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.trend-title{font-size:10px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;font-weight:600}
+.trend-row{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border)}
+.trend-row:last-child{border-bottom:none}
+.trend-row span:first-child{color:var(--text2)}
+.up{color:var(--accent)}
+.down{color:var(--accent4)}
+
+/* ─── Rank cards ─── */
+.rank-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.rank-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.rank-head{padding:14px 18px;border-bottom:1px solid var(--border)}
+.rank-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:0.06em;padding:2px 9px;border-radius:4px;margin-bottom:6px;font-family:var(--mono)}
+.rb1{background:rgba(240,112,96,0.15);color:var(--accent)}
+.rb2{background:rgba(245,181,90,0.15);color:var(--accent2)}
+.rank-name{font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px}
+.rank-sub{font-size:12px;color:var(--text3);font-family:var(--mono)}
+.rank-body{padding:14px 18px}
+.rank-section-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.09em;margin-bottom:10px;font-family:var(--mono);font-weight:600}
+
+/* ─── Month compare bars ─── */
+.month-grp{margin-bottom:13px}
+.month-grp-label{font-size:12px;color:var(--text2);margin-bottom:6px;font-weight:500}
+.month-tag{font-size:10px;font-family:var(--mono);color:var(--text3);min-width:22px;display:inline-block}
+
+/* ─── Read-only mode（GitHub Pages 自動啟用）─── */
+body.readonly .btn-new,
+body.readonly .btn-sm.danger,
+body.readonly .tl-edit-btn,
+body.readonly .tl-del-btn,
+body.readonly .add-reply-box,
+body.readonly .status-row,
+body.readonly .case-card-actions,
+body.readonly .case-img-del,
+body.readonly .img-add-btn { display:none !important }
+body.readonly #newCaseModal  { display:none !important }
+
+/* ─── Timeline edit ─── */
+.tl-edit-btn{font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--text3);cursor:pointer;font-family:var(--sans);transition:all 0.15s;margin-left:4px}
+.tl-edit-btn:hover{border-color:var(--accent3);color:var(--accent3)}
+.tl-del-btn{font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--text3);cursor:pointer;font-family:var(--sans);transition:all 0.15s;margin-left:2px}
+.tl-del-btn:hover{border-color:var(--accent);color:var(--accent)}
+.tl-edit-box{margin-top:8px;background:var(--bg3);border-radius:7px;padding:10px;border:1px solid var(--border2)}
+.tl-edit-box textarea{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:13px;padding:7px 10px;resize:vertical;min-height:60px;outline:none;margin-bottom:8px}
+.tl-edit-box textarea:focus{border-color:var(--accent3)}
+.tl-edit-actions{display:flex;gap:6px}
+.tl-edit-save{background:var(--accent3);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;padding:5px 12px;cursor:pointer;font-family:var(--sans)}
+.tl-edit-save:hover{opacity:0.85}
+.tl-edit-cancel{background:transparent;border:1px solid var(--border2);border-radius:6px;font-size:12px;color:var(--text2);padding:5px 10px;cursor:pointer;font-family:var(--sans)}
+.tl-edit-cancel:hover{background:var(--bg3)}
+.tl-edited-badge{font-size:10px;color:var(--text3);font-family:var(--mono);margin-left:4px;font-style:italic}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+
+/* ─── Cases ─── */
+.cases-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.cases-search{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cases-search input,.cases-search select{background:var(--bg2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--sans);font-size:13px;padding:7px 12px;outline:none}
+.cases-search input{width:220px}
+.cases-search input::placeholder{color:var(--text3)}
+.cases-search input:focus,.cases-search select:focus{border-color:var(--accent3)}
+.btn-new{background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;padding:8px 16px;cursor:pointer;font-family:var(--sans);transition:opacity 0.15s}
+.btn-new:hover{opacity:0.85}
+.case-list{display:flex;flex-direction:column;gap:10px}
+.case-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color 0.15s}
+.case-card:hover{border-color:var(--border2)}
+.case-card-head{padding:14px 18px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;cursor:pointer}
+.case-card-left{flex:1;min-width:0}
+.case-id{font-size:11px;font-family:var(--mono);color:var(--text3);margin-bottom:4px}
+.case-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:5px}
+.case-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.case-tag{font-size:11px;padding:2px 8px;border-radius:4px;font-family:var(--mono);font-weight:500}
+.tag-open{background:rgba(240,112,96,0.15);color:var(--accent)}
+.tag-pending{background:rgba(245,181,90,0.15);color:var(--accent2)}
+.tag-replied{background:rgba(96,184,245,0.15);color:var(--accent3)}
+.tag-resolved{background:rgba(96,217,154,0.15);color:var(--accent4)}
+.tag-closed{background:rgba(143,150,168,0.15);color:var(--text3)}
+.case-severity{font-size:11px;padding:2px 8px;border-radius:4px;font-family:var(--mono);font-weight:500}
+.sev-high{background:rgba(240,112,96,0.15);color:var(--accent)}
+.sev-mid{background:rgba(245,181,90,0.15);color:var(--accent2)}
+.sev-low{background:rgba(96,184,245,0.15);color:var(--accent3)}
+.case-date{font-size:11px;color:var(--text3);font-family:var(--mono)}
+.case-card-actions{display:flex;gap:6px;flex-shrink:0}
+.btn-sm{font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--sans);transition:all 0.15s}
+.btn-sm:hover{background:var(--bg3);color:var(--text)}
+.btn-sm.danger{color:var(--accent)}
+.btn-sm.danger:hover{background:rgba(240,112,96,0.1)}
+.case-body{display:none;padding:0 18px 16px;border-top:1px solid var(--border)}
+.case-body.open{display:block}
+.case-desc{font-size:13px;color:var(--text2);line-height:1.7;padding:14px 0 10px}
+.case-images{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.case-img-wrap{position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;border:1px solid var(--border);cursor:pointer}
+.case-img-wrap img{width:100%;height:100%;object-fit:cover}
+.case-img-del{position:absolute;top:3px;right:3px;background:rgba(0,0,0,0.65);border:none;color:#fff;font-size:12px;border-radius:4px;width:18px;height:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+.img-add-btn{width:80px;height:80px;border-radius:8px;border:1px dashed var(--border2);background:transparent;color:var(--text3);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s}
+.img-add-btn:hover{border-color:var(--accent3);color:var(--accent3)}
+.timeline{margin-top:4px}
+.timeline-title{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.09em;font-family:var(--mono);margin-bottom:10px}
+.timeline-item{display:flex;gap:12px;margin-bottom:12px}
+.tl-line{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.tl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.tl-dot.factory{background:var(--accent2)}
+.tl-dot.internal{background:var(--accent3)}
+.tl-dot.system{background:var(--text3)}
+.tl-connector{flex:1;width:1px;background:var(--border);margin:4px 0}
+.tl-content{flex:1;min-width:0}
+.tl-header{display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap}
+.tl-author{font-size:12px;font-weight:600;color:var(--text)}
+.tl-type{font-size:10px;font-family:var(--mono);padding:1px 6px;border-radius:3px}
+.tl-type.factory{background:rgba(245,181,90,0.15);color:var(--accent2)}
+.tl-type.internal{background:rgba(96,184,245,0.15);color:var(--accent3)}
+.tl-time{font-size:11px;color:var(--text3);font-family:var(--mono)}
+.tl-text{font-size:13px;color:var(--text2);line-height:1.65}
+.tl-imgs{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tl-img{width:60px;height:60px;border-radius:6px;object-fit:cover;border:1px solid var(--border);cursor:pointer}
+.add-reply-box{background:var(--bg3);border-radius:8px;padding:12px;margin-top:8px}
+.add-reply-label{font-size:11px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.07em;font-weight:600;margin-bottom:8px}
+.reply-type-row{display:flex;gap:6px;margin-bottom:8px}
+.reply-type-btn{font-size:11px;padding:3px 10px;border-radius:5px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--sans);transition:all 0.15s}
+.reply-type-btn.sel{background:var(--accent3);color:#fff;border-color:var(--accent3)}
+.reply-textarea{width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--sans);font-size:13px;padding:8px 12px;resize:vertical;min-height:70px;outline:none;margin-bottom:8px}
+.reply-textarea::placeholder{color:var(--text3)}
+.reply-textarea:focus{border-color:var(--accent3)}
+.reply-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.reply-img-label{font-size:12px;color:var(--text3);cursor:pointer;display:flex;align-items:center;gap:4px;padding:5px 10px;border:1px solid var(--border2);border-radius:6px;transition:all 0.15s}
+.reply-img-label:hover{border-color:var(--accent3);color:var(--accent3)}
+.reply-imgs-preview{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.reply-img-thumb{width:50px;height:50px;border-radius:5px;object-fit:cover;border:1px solid var(--border)}
+.btn-reply{background:var(--accent3);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;padding:6px 14px;cursor:pointer;font-family:var(--sans)}
+.btn-reply:hover{opacity:0.85}
+.status-row{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap}
+.status-label{font-size:12px;color:var(--text3)}
+.status-select{background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:12px;padding:4px 8px;cursor:pointer;outline:none}
+.empty-cases{text-align:center;padding:48px 24px;color:var(--text3);font-size:14px}
+.empty-cases-icon{font-size:32px;margin-bottom:12px;opacity:0.4}
+/* Modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;width:580px;max-width:100%;max-height:90vh;overflow-y:auto;padding:24px}
+.modal-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:18px}
+.form-group{margin-bottom:14px}
+.form-label{font-size:12px;color:var(--text3);font-weight:600;letter-spacing:0.04em;margin-bottom:5px;display:block}
+.form-input,.form-select,.form-textarea{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--sans);font-size:13px;padding:8px 12px;outline:none;transition:border-color 0.15s}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--accent3)}
+.form-input::placeholder,.form-textarea::placeholder{color:var(--text3)}
+.form-textarea{resize:vertical;min-height:80px}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.btn-cancel{background:transparent;border:1px solid var(--border2);border-radius:8px;color:var(--text2);font-size:13px;padding:8px 16px;cursor:pointer;font-family:var(--sans)}
+.btn-cancel:hover{background:var(--bg3)}
+.btn-submit{background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;padding:8px 18px;cursor:pointer;font-family:var(--sans)}
+.btn-submit:hover{opacity:0.85}
+/* Lightbox */
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,0.88);display:flex;align-items:center;justify-content:center;z-index:300;cursor:zoom-out}
+.lightbox img{max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain}
+.cases-kpi{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px}
+
+@media(max-width:960px){
+  .sidebar{width:56px}
+  .logo-title,.logo-sub,.nav-label,.sidebar-footer,.nav-item span:not(.nav-dot){display:none}
+  .nav-item{justify-content:center;padding:10px}
+  .main{margin-left:56px}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .panel-grid,.rank-cards{grid-template-columns:1fr}
+  .trend-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="loadingOverlay" style="display:none;position:fixed;inset:0;background:rgba(17,19,24,0.82);z-index:500;align-items:center;justify-content:center;flex-direction:column;gap:14px">
+  <div style="width:40px;height:40px;border:3px solid var(--border2);border-top-color:var(--accent3);border-radius:50%;animation:spin 0.8s linear infinite"></div>
+  <div style="font-size:13px;color:var(--text2);font-family:var(--mono)">正在從 Google Sheets 同步資料…</div>
+</div>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+<div class="shell">
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">Q</div>
+    <div class="logo-title">瑕疵分析系統</div>
+    <div class="logo-sub">SCREEN PROTECTOR QC</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-label">分析</div>
+    <div class="nav-item active" onclick="goSection('overview')"><div class="nav-dot"></div><span>總覽儀表板</span></div>
+    <div class="nav-item" onclick="goSection('breakdown')"><div class="nav-dot"></div><span>原因 × 型號</span></div>
+    <div class="nav-label">通路</div>
+    <div class="nav-item" onclick="goSection('store')"><div class="nav-dot"></div><span>門市通路</span></div>
+    <div class="nav-item" onclick="goSection('ec')"><div class="nav-dot"></div><span>電商通路</span></div>
+    <div class="nav-label">時間</div>
+    <div class="nav-item" onclick="goSection('trend')"><div class="nav-dot"></div><span>月份趨勢</span></div>
+    <div class="nav-label">管理</div>
+    <div class="nav-item" onclick="goSection('cases')"><div class="nav-dot"></div><span>瑕疵立案追蹤</span></div>
+  </nav>
+  <div class="sidebar-footer">v1.1 · 2026 Q1</div>
+</aside>
+
+<!-- Main -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="page-title" id="pageTitle">總覽儀表板</span>
+      <span class="breadcrumb" id="breadcrumb">全季 · 全通路</span>
+      <span id="lastSync" style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-left:4px"></span>
+    </div>
+    <button onclick="fetchAllData()" title="重新從 Google Sheets 載入" style="background:transparent;border:1px solid var(--border2);border-radius:7px;color:var(--text3);font-size:12px;padding:5px 12px;cursor:pointer;font-family:var(--sans);display:flex;align-items:center;gap:5px;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent3)';this.style.color='var(--accent3)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'">↻ 同步資料</button>
+    <div class="filter-row">
+      <select class="top-select" id="chFilter" onchange="setCh(this.value)">
+        <option value="all">全通路</option>
+        <option value="store">門市</option>
+        <option value="ec">電商</option>
+      </select>
+      <select class="top-select" id="mFilter" onchange="setM(this.value)">
+        <option value="all">全季</option>
+        <option value="jan">1月</option>
+        <option value="feb">2月</option>
+        <option value="mar">3月</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- OVERVIEW -->
+    <div class="section active" id="sec-overview">
+      <div class="section-header"><h2>總覽儀表板</h2></div>
+      <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="panel-grid">
+        <div class="panel"><div class="panel-head"><span class="panel-title">不良原因分布</span></div><div class="panel-body" id="reasonBars"></div></div>
+        <div class="panel"><div class="panel-head"><span class="panel-title">產品線分布</span></div><div class="panel-body" id="productBars"></div></div>
+      </div>
+      <div class="panel-grid">
+        <div class="panel"><div class="panel-head"><span class="panel-title">型號分布（前 10）</span></div><div class="panel-body" id="modelBars"></div></div>
+        <div class="panel"><div class="panel-head"><span class="panel-title">門市通路分布</span></div><div class="panel-body" id="storeBars"></div></div>
+      </div>
+    </div>
+
+    <!-- BREAKDOWN -->
+    <div class="section" id="sec-breakdown">
+      <div class="section-header"><h2>不良原因 × 型號完整展開</h2></div>
+      <div class="rank-cards" id="rankCards"></div>
+    </div>
+
+    <!-- STORE -->
+    <div class="section" id="sec-store">
+      <div class="section-header"><h2>門市通路分析</h2></div>
+      <div class="kpi-grid" id="storeKpi"></div>
+      <div class="panel-grid">
+        <div class="panel"><div class="panel-head"><span class="panel-title">不良原因</span></div><div class="panel-body" id="storeReasonBars"></div></div>
+        <div class="panel"><div class="panel-head"><span class="panel-title">門市來源</span></div><div class="panel-body" id="storeStoreBars"></div></div>
+      </div>
+      <div class="panel-grid">
+        <div class="panel"><div class="panel-head"><span class="panel-title">產品線</span></div><div class="panel-body" id="storeProductBars"></div></div>
+        <div class="panel"><div class="panel-head"><span class="panel-title">型號</span></div><div class="panel-body" id="storeModelBars"></div></div>
+      </div>
+    </div>
+
+    <!-- EC -->
+    <div class="section" id="sec-ec">
+      <div class="section-header"><h2>電商通路分析</h2></div>
+      <div class="kpi-grid" id="ecKpi"></div>
+      <div class="panel-grid">
+        <div class="panel"><div class="panel-head"><span class="panel-title">不良原因</span></div><div class="panel-body" id="ecReasonBars"></div></div>
+        <div class="panel"><div class="panel-head"><span class="panel-title">產品線</span></div><div class="panel-body" id="ecProductBars"></div></div>
+      </div>
+      <div class="panel panel-full"><div class="panel-head"><span class="panel-title">型號分布（完整）</span></div><div class="panel-body" id="ecModelBars"></div></div>
+    </div>
+
+    <!-- TREND -->
+    <div class="section" id="sec-trend">
+      <div class="section-header"><h2>月份趨勢比較</h2></div>
+      <div class="trend-grid" id="trendGrid"></div>
+      <div class="panel-grid">
+        <div class="panel"><div class="panel-head"><span class="panel-title">門市：不良原因月比</span></div><div class="panel-body" id="storeMonthBars"></div></div>
+        <div class="panel"><div class="panel-head"><span class="panel-title">電商：不良原因月比</span></div><div class="panel-body" id="ecMonthBars"></div></div>
+      </div>
+    </div>
+
+    <!-- CASES -->
+    <div class="section" id="sec-cases">
+      <div class="section-header"><h2>瑕疵立案追蹤</h2></div>
+      <div class="cases-kpi" id="casesKpi"></div>
+      <div class="cases-toolbar">
+        <div class="cases-search">
+          <input type="text" id="caseSearch" placeholder="搜尋案件編號、標題、工廠…" oninput="renderCases()">
+          <select id="caseStatusFilter" onchange="renderCases()">
+            <option value="">全部狀態</option>
+            <option value="open">待處理</option>
+            <option value="pending">等待工廠回覆</option>
+            <option value="replied">工廠已回覆</option>
+            <option value="resolved">已解決</option>
+            <option value="closed">已關閉</option>
+          </select>
+          <select id="caseSevFilter" onchange="renderCases()">
+            <option value="">全部嚴重度</option>
+            <option value="high">高</option>
+            <option value="mid">中</option>
+            <option value="low">低</option>
+          </select>
+        </div>
+        <button class="btn-new" onclick="openNewCase()">＋ 新增案件</button>
+      </div>
+      <div id="caseList"></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- New Case Modal -->
+<div class="modal-backdrop" id="newCaseModal" style="display:none" onclick="if(event.target===this)closeNewCase()">
+  <div class="modal">
+    <div class="modal-title">新增瑕疵追蹤案件</div>
+    <div class="form-row-2">
+      <div class="form-group"><label class="form-label">案件標題 *</label><input class="form-input" id="nc_title" placeholder="簡短描述瑕疵問題"></div>
+      <div class="form-group"><label class="form-label">工廠 / 供應商 *</label><input class="form-input" id="nc_factory" placeholder="例：台灣光學科技"></div>
+    </div>
+    <div class="form-row-2">
+      <div class="form-group"><label class="form-label">不良原因</label>
+        <select class="form-select" id="nc_reason">
+          <option>浮邊（白邊）</option><option>入塵（白點）</option><option>刮痕</option><option>破裂</option><option>褪色</option><option>結晶</option><option>氣泡</option><option>變形</option><option>鍍膜剝落</option><option>觸控不良</option><option>其他</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">嚴重度</label>
+        <select class="form-select" id="nc_sev">
+          <option value="high">高（影響出貨/安全）</option>
+          <option value="mid" selected>中（功能受損）</option>
+          <option value="low">低（外觀/輕微）</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div class="form-group"><label class="form-label">品項</label><input class="form-input" id="nc_product" placeholder="例：S-90 透明"></div>
+      <div class="form-group"><label class="form-label">影響件數</label><input class="form-input" id="nc_qty" type="number" min="1" value="1"></div>
+    </div>
+    <div class="form-group"><label class="form-label">瑕疵描述</label><textarea class="form-textarea" id="nc_desc" placeholder="詳述瑕疵現象、發現時間、影響範圍…"></textarea></div>
+    <div class="form-group"><label class="form-label">上傳圖片</label>
+      <input type="file" id="nc_imgs" accept="image/*" multiple style="display:none" onchange="previewNewCaseImgs()">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="img-add-btn" style="width:60px;height:60px;font-size:18px" onclick="document.getElementById('nc_imgs').click()">＋</button>
+        <div id="nc_imgs_preview" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeNewCase()">取消</button>
+      <button class="btn-submit" onclick="submitNewCase()">建立案件</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" style="display:none" onclick="this.style.display='none'">
+  <img id="lightboxImg" src="">
+</div>
+
+<script>
+// ═══════════════════════════════════════
+//  CONFIG — Google Sheets 來源設定
+// ═══════════════════════════════════════
+const SHEET_ID = '15MWhxBc8xPlxSB1d1Ftfz2FzqlR0_dVOWuboSxnYrlE';
+const PROXY = 'https://corsproxy.io/?';
+
+// 頁籤設定：依序新增月份即可擴充
+const TAB_CONFIG = [
+  { key:'jan', label:'1月', storeGid:'1157254929', ecGid:'832991661'  },
+  { key:'feb', label:'2月', storeGid:'16459026',   ecGid:'1202185538' },
+  { key:'mar', label:'3月', storeGid:'1561441516', ecGid:'1507351199' },
+];
+
+// 靜態備援資料（網路連線失敗時自動使用）
+const STATIC_FALLBACK = {
+  store:{
+    jan:{
+      total:579,
+      reasons:[['入塵（白點）',237,41],['浮邊（白邊）',227,39],['刮痕',52,9],['入塵+刮痕',14,2],['氣泡',13,2],['破裂',7,1],['變形',6,1],['褪色',6,1],['其他',5,1],['結晶',3,1]],
+      products:[['S-90 透明',253,44],['S-90 霧透',112,19],['P-90 防窺',78,13],['S-80 AR',60,10],['iPad 玻璃貼',48,8],['S-80 霧面',9,2],['P-80 防窺',8,1],['iPad 類紙膜',4,1],['Mac 無痕霧面',3,1],['L-90 藍寶石鏡頭貼',2,0]],
+      models:[['16pro/17pro',217,37],['16promax/17promax',189,33],['14pro/15/16',35,6],['iPadAir11',16,3],['15pro',15,3],['16promax',14,2],['Air17',12,2],['15promax',11,2],['iPad10.9/A16',11,2],['iPadPro11',11,2]],
+      stores:[['SA',224,39],['DE',112,19],['殼老爹',74,13],['神腦',50,9],['時耘',50,9],['天霸',23,4],['大邑倉',23,4],['駿霆',9,2],['瑞亮',7,1],['駿霆林森',6,1]],
+      _bd:{'入塵（白點）':[['16pro/17pro',67],['16promax/17promax',62],['14pro/15/16',18],['15promax',12],['15pro',10],['iPadAir11',9],['16promax',8],['iPad10.9/A16',7]],'浮邊（白邊）':[['16pro/17pro',75],['16promax/17promax',58],['iPadAir11',18],['14pro/15/16',14],['iPad10.9/A16',12],['15pro',10],['16promax',9],['Air17',8]]}
+    },
+    feb:{
+      total:327,
+      reasons:[['浮邊（白邊）',171,52],['入塵（白點）',100,31],['刮痕',33,10],['褪色',8,2],['其他',6,2],['變形',5,2],['入塵+浮邊',2,1],['氣泡',2,1]],
+      products:[['S-90 透明',154,47],['S-90 霧透',64,20],['P-90 防窺',48,15],['iPad 玻璃貼',23,7],['S-80 AR',16,5],['S-80 霧面',7,2],['iPad 類紙膜',7,2],['P-80 防窺',5,2],['Mac 無痕霧面',1,0],['S-60 透明',1,0]],
+      models:[['16pro/17pro',148,45],['16promax/17promax',87,27],['14pro/15/16',15,5],['iPad10.9/A16',10,3],['15pro',8,2],['iPadAir11',7,2],['15promax',7,2],['14promax/15+/16+',6,2],['13promax/14+',6,2],['13/13pro/14/16e',5,2]],
+      stores:[['SA',128,39],['大師修',69,21],['殼老爹',64,20],['天霸',49,15],['駿霆林森',9,3],['熊賀',8,2]],
+      _bd:{'浮邊（白邊）':[['16pro/17pro',79],['16promax/17promax',47],['14pro/15/16',13],['15pro',9],['iPadAir11',7]],'入塵（白點）':[['16pro/17pro',45],['16promax/17promax',28],['14pro/15/16',10],['15pro',6],['iPad10.9/A16',4]]}
+    },
+    mar:{
+      total:168,
+      reasons:[['浮邊（白邊）',89,53],['入塵（白點）',42,25],['刮痕',17,10],['破裂',6,4],['褪色',4,2],['結晶（顆粒）',2,1],['氣泡',2,1],['變形',1,1],['其他',2,1],['摺痕',1,1]],
+      products:[['S-90 透明',72,43],['S-90 霧透',45,27],['P-90 防窺',24,14],['iPad 玻璃貼',14,8],['S-80 AR',5,3],['S-80 霧面',4,2],['S-60 透明',3,2],['護眼霧面',1,1]],
+      models:[['16pro/17pro',88,52],['16promax/17promax',38,23],['iPadAir11',12,7],['14pro/15/16',8,5],['15promax',5,3],['iPadPro11',4,2],['Air17',4,2],['16pro',4,2],['14promax/15+/16+',2,1],['13/13pro/14/16e',1,1]],
+      stores:[['SA',98,58],['天霸',18,11],['熊賀',17,10],['訊鋒',16,10],['創宇',11,7],['Q',4,2],['駿霆林森',2,1],['大師修',2,1]],
+      _bd:{'浮邊（白邊）':[['16pro/17pro',48],['16promax/17promax',20],['iPadAir11',8],['15promax',4],['14pro/15/16',3]],'入塵（白點）':[['16pro/17pro',22],['16promax/17promax',9],['Air17',3],['16pro',3],['16promax',2]]}
+    }
+  },
+  ec:{
+    jan:{
+      total:242,
+      reasons:[['浮邊（白邊）',110,45],['結晶',34,14],['破裂',32,13],['褪色',28,12],['鍍膜剝落',10,4],['刮痕',6,2],['觸控不良',6,2],['Macbook不黏',2,1],['鏡頭貼不黏',2,1],['個人原因',2,1]],
+      products:[['S-90 透明',116,48],['S-90 霧透',70,29],['P-90 防窺',14,6],['S-80 AR',10,4],['L-90 藍寶石鏡頭貼',6,2],['護眼透明',6,2],['P-80 防窺',6,2],['iPad 玻璃貼',4,2],['iPad 類紙膜',4,2],['L-90 一片式鏡頭貼',2,1]],
+      models:[['16 Pro',54,22],['17 Pro',52,21],['17',38,16],['17 Pro Max',22,9],['16 Pro Max',20,8],['15 Pro Max',12,5],['14 Pro',10,4],['14 Pro Max',8,3],['13 Pro',6,2],['Air 4-5th',4,2]],
+      stores:[],
+      _bd:{'浮邊（白邊）':[['17 Pro',24],['16 Pro',23],['17',18],['17 Pro Max',10],['16 Pro Max',9],['15 Pro Max',6],['14 Pro',5],['13 Pro',4]],'結晶':[['17 Pro',11],['16 Pro',10],['17',5],['17 Pro Max',4],['16 Pro Max',3]]}
+    },
+    feb:{
+      total:98,
+      reasons:[['浮邊（白邊）',50,51],['破裂',18,18],['結晶',12,12],['Macbook不黏',4,4],['褪色',4,4],['鍍膜剝落',3,3],['鏡頭貼不黏',1,1],['刮痕',1,1]],
+      products:[['S-90 透明',41,42],['S-90 霧透',27,28],['P-90 防窺',6,6],['S-80 AR',5,5],['P-80 防窺',4,4],['L-90 藍寶石鏡頭貼',3,3],['Mac 無痕防窺',2,2],['舒視防窺',2,2]],
+      models:[['17 Pro',25,26],['16 Pro',13,13],['17 Pro Max',11,11],['17',10,10],['16 Pro Max',7,7],['15 Pro',4,4],['13 Pro',4,4],['15',3,3],['13 Pro Max',3,3],['14',2,2]],
+      stores:[],
+      _bd:{'浮邊（白邊）':[['17 Pro',13],['16 Pro',7],['17 Pro Max',6],['17',5],['16 Pro Max',4]],'破裂':[['16 Pro',5],['17 Pro',4],['17 Pro Max',3],['15 Pro Max',2],['13 Pro',2]]}
+    },
+    mar:{
+      total:99,
+      reasons:[['浮邊（白邊）',56,57],['破裂',8,8],['褪色',8,8],['觸控不良',3,3],['Macbook不黏',3,3],['刮痕',3,3],['鏡頭貼不黏',1,1],['個人原因',2,2]],
+      products:[['S-90 透明',42,42],['S-90 霧透',26,26],['P-90 防窺',16,16],['Mac 無痕防窺',4,4],['S-80 AR',4,4],['P-80 防窺',2,2],['L-90 藍寶石鏡頭貼',1,1],['iPad 玻璃貼',1,1]],
+      models:[['17 Pro',28,28],['17 Pro Max',16,16],['17',15,15],['16 Pro',12,12],['16 Pro Max',7,7],['15 Pro Max',5,5],['15 Pro',3,3],['14 Pro',3,3],['13 Pro Max',2,2],['14 Pro Max',2,2]],
+      stores:[],
+      _bd:{'浮邊（白邊）':[['17 Pro',16],['17',10],['17 Pro Max',9],['16 Pro',8],['16 Pro Max',5]],'破裂':[['17 Pro Max',3],['15 Pro',2],['17',1],['14 Pro',1],['16 Pro',1]]}
+    }
+  }
+}
+
+// 不計入統計的不良原因關鍵字
+const SKIP_REASONS = ['換貨','寄錯',''];
+
+// 動態資料容器（由 fetchAllData 填入）
+let DATA = { store:{}, ec:{} };
+let BREAKDOWN_STORE = {};
+let BREAKDOWN_EC   = {};
+let LOADED_MONTHS  = [];
+
+// ── CSV 抓取工具 ──────────────────────────
+function csvUrl(gid){
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
+  return PROXY + encodeURIComponent(url);
+}
+
+function parseCSV(text){
+  return text.trim().split('\n').map(row=>{
+    const cells=[]; let cur='', inQ=false;
+    for(const ch of row){
+      if(ch==='"'){ inQ=!inQ; }
+      else if(ch===','&&!inQ){ cells.push(cur.trim()); cur=''; }
+      else cur+=ch;
+    }
+    cells.push(cur.trim());
+    return cells;
+  });
+}
+
+// ── 原始明細解析（門市格式）───────────────
+// 欄位：日期 門市 品項 型號 數量 不良原因 ...
+function parseStoreRaw(rows){
+  const reasons={}, products={}, models={}, stores={};
+  let total=0;
+  const bdReason={}; // reason -> {model->n}
+  for(const row of rows){
+    if(row.length<6) continue;
+    const qty = parseInt(row[4])||1;
+    const reason = (row[5]||'').trim();
+    const store  = (row[1]||'').trim();
+    const prod   = (row[2]||'').trim();
+    const model  = (row[3]||'').trim();
+    if(!reason || SKIP_REASONS.includes(reason)) continue;
+    if(!store && !model) continue;
+    total += qty;
+    reasons[reason]  = (reasons[reason]||0)+qty;
+    if(prod)   products[prod]  = (products[prod]||0)+qty;
+    if(model)  models[model]   = (models[model]||0)+qty;
+    if(store)  stores[store]   = (stores[store]||0)+qty;
+    if(reason && model){
+      if(!bdReason[reason]) bdReason[reason]={};
+      bdReason[reason][model] = (bdReason[reason][model]||0)+qty;
+    }
+  }
+  const srt = (obj,t) => Object.entries(obj).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k,v,Math.round(v/t*100)]);
+  const bdSorted={};
+  for(const [r,mmap] of Object.entries(bdReason))
+    bdSorted[r]=Object.entries(mmap).sort((a,b)=>b[1]-a[1]);
+  return {
+    total,
+    reasons: srt(reasons,total),
+    products:srt(products,total),
+    models:  srt(models,total),
+    stores:  srt(stores,total),
+    _bd: bdSorted
+  };
+}
+
+// ── 原始明細解析（電商格式）────────────────
+// 欄位：日期 訂單編號 功能(品項) 型號 數量 不良原因 ...
+function parseEcRaw(rows){
+  const reasons={}, products={}, models={};
+  let total=0;
+  const bdReason={};
+  for(const row of rows){
+    if(row.length<6) continue;
+    const qty    = parseInt(row[4])||1;
+    const reason = (row[5]||'').trim();
+    // 電商品項含 "/iPhone" suffix, strip it
+    const prod   = (row[2]||'').trim().replace(/\/iPhone$|\/iPad$/, '').trim();
+    const model  = (row[3]||'').trim();
+    if(!reason || SKIP_REASONS.includes(reason)) continue;
+    if(!model && !prod) continue;
+    total += qty;
+    reasons[reason] = (reasons[reason]||0)+qty;
+    if(prod)  products[prod]  = (products[prod]||0)+qty;
+    if(model) models[model]   = (models[model]||0)+qty;
+    if(reason && model){
+      if(!bdReason[reason]) bdReason[reason]={};
+      bdReason[reason][model] = (bdReason[reason][model]||0)+qty;
+    }
+  }
+  const srt=(obj,t)=>Object.entries(obj).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k,v,Math.round(v/t*100)]);
+  const bdSorted={};
+  for(const [r,mmap] of Object.entries(bdReason))
+    bdSorted[r]=Object.entries(mmap).sort((a,b)=>b[1]-a[1]);
+  return {
+    total, reasons:srt(reasons,total),
+    products:srt(products,total),
+    models:srt(models,total),
+    stores:[], _bd:bdSorted
+  };
+}
+
+// ── 單一頁籤抓取 ──────────────────────────
+async function fetchTab(gid, isEc){
+  try {
+    const res = await fetch(csvUrl(gid));
+    if(!res.ok) return null;
+    const text = await res.text();
+    const rows = parseCSV(text).slice(1); // skip header
+    return isEc ? parseEcRaw(rows) : parseStoreRaw(rows);
+  } catch(e){ return null; }
+}
+
+// ── 全部頁籤載入 ──────────────────────────
+async function fetchAllData(){
+  showLoading(true);
+  DATA = { store:{}, ec:{} };
+  BREAKDOWN_STORE = {};
+  BREAKDOWN_EC    = {};
+  LOADED_MONTHS   = [];
+
+  for(const tab of TAB_CONFIG){
+    let storeData=null, ecData=null;
+    // Try live fetch first, always fall back to static data on failure
+    if(tab.storeGid){
+      storeData = await fetchTab(tab.storeGid, false);
+    }
+    if(!storeData) storeData = STATIC_FALLBACK.store[tab.key] || null;
+
+    if(tab.ecGid){
+      ecData = await fetchTab(tab.ecGid, true);
+    }
+    if(!ecData) ecData = STATIC_FALLBACK.ec[tab.key] || null;
+    if(storeData){
+      DATA.store[tab.key] = storeData;
+      BREAKDOWN_STORE[tab.key] = storeData._bd||{};
+    }
+    if(ecData){
+      DATA.ec[tab.key] = ecData;
+      BREAKDOWN_EC[tab.key] = ecData._bd||{};
+    }
+    if(storeData||ecData) LOADED_MONTHS.push(tab.key);
+  }
+
+  // Rebuild month selector based on loaded data
+  rebuildMonthSelector();
+  showLoading(false);
+  updateLastSync();
+  renderAll();
+}
+
+function rebuildMonthSelector(){
+  const sel = document.getElementById('mFilter');
+  if(!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="all">全季</option>';
+  for(const tab of TAB_CONFIG){
+    if(LOADED_MONTHS.includes(tab.key)){
+      const opt = document.createElement('option');
+      opt.value = tab.key;
+      opt.textContent = tab.label;
+      sel.appendChild(opt);
+    }
+  }
+  // Also update getMonths helper
+  sel.value = LOADED_MONTHS.includes(cur) ? cur : 'all';
+  curM = sel.value;
+}
+
+function showLoading(on){
+  let el = document.getElementById('loadingBar');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'loadingBar';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;height:3px;background:var(--accent3);z-index:999;transition:opacity 0.4s';
+    document.body.appendChild(el);
+  }
+  el.style.opacity = on ? '1' : '0';
+  const ov = document.getElementById('loadingOverlay');
+  if(ov) ov.style.display = on ? 'flex' : 'none';
+}
+
+function updateLastSync(){
+  const el = document.getElementById('lastSync');
+  if(el) el.textContent = '最後同步 ' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ═══════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════
+
+let curSection='overview', curCh='all', curM='all';
+
+// ═══════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════
+function goSection(s){
+  curSection=s;
+  document.querySelectorAll('.section').forEach(el=>el.classList.remove('active'));
+  document.getElementById('sec-'+s).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach((el,i)=>{
+    el.classList.toggle('active',['overview','breakdown','store','ec','trend','cases'][i]===s);
+  });
+  const titles={overview:'總覽儀表板',breakdown:'原因 × 型號展開',store:'門市通路分析',ec:'電商通路分析',trend:'月份趨勢比較',cases:'瑕疵立案追蹤'};
+  document.getElementById('pageTitle').textContent=titles[s];
+  renderAll();
+}
+function setCh(c){
+  curCh=c;
+  const el=document.getElementById('chFilter');
+  if(el&&el.value!==c) el.value=c;
+  updateBreadcrumb(); renderAll();
+}
+function setM(m){
+  curM=m;
+  const el=document.getElementById('mFilter');
+  if(el&&el.value!==m) el.value=m;
+  updateBreadcrumb(); renderAll();
+}
+function updateBreadcrumb(){
+  const mLabels=Object.fromEntries(TAB_CONFIG.map(t=>[t.key,t.label]));
+  const mL = curM==='all' ? '全季' : (mLabels[curM]||curM);
+  const cL = {all:'全通路',store:'門市',ec:'電商'}[curCh];
+  document.getElementById('breadcrumb').textContent=mL+' · '+cL;
+}
+
+// ═══════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════
+function getChannels(){ return curCh==='all'?['store','ec']:[curCh]; }
+function getMonths(){ return curM==='all'?[...LOADED_MONTHS]:[curM]; }
+
+function mergeData(chs, ms){
+  const r={total:0,reasons:{},products:{},models:{},stores:{}};
+  for(const ch of chs) for(const m of ms){
+    const d=DATA[ch][m];
+    if(!d) continue;
+    r.total+=d.total;
+    for(const [k,v] of (d.reasons||[])) r.reasons[k]=(r.reasons[k]||0)+v;
+    for(const [k,v] of (d.products||[])) r.products[k]=(r.products[k]||0)+v;
+    for(const [k,v] of (d.models||[])) r.models[k]=(r.models[k]||0)+v;
+    for(const [k,v] of (d.stores||[])) r.stores[k]=(r.stores[k]||0)+v;
+  }
+  if(!r.total) return {total:0,reasons:[],products:[],models:[],stores:[]};
+  const srt=obj=>Object.entries(obj).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k,v,Math.round(v/r.total*100)]);
+  return {...r,reasons:srt(r.reasons),products:srt(r.products),models:srt(r.models),stores:srt(r.stores)};
+}
+
+const FILLS=['fill-red','fill-amber','fill-blue','fill-green','fill-gray','fill-red','fill-amber','fill-blue','fill-green','fill-gray'];
+
+function makeBars(items, limit=10, fillOverride=null){
+  if(!items||!items.length) return '<p style="font-size:12px;color:var(--text3)">無資料</p>';
+  const max=items[0][1];
+  return items.slice(0,limit).map(([k,v,p],i)=>`
+    <div class="bar-row">
+      <div class="bar-lbl" title="${k}">${k}</div>
+      <div class="bar-track"><div class="bar-fill ${fillOverride||FILLS[i]}" style="width:${Math.round(v/max*100)}%"></div></div>
+      <div class="bar-n">${v}</div>
+      <div class="bar-pct">${p}%</div>
+    </div>`).join('');
+}
+
+function makeBarsRaw(items, fillClass){
+  if(!items||!items.length) return '<p style="font-size:12px;color:var(--text3)">無資料</p>';
+  const max=items[0][1]; const total=items.reduce((s,x)=>s+x[1],0);
+  return items.map(([k,v])=>`
+    <div class="bar-row">
+      <div class="bar-lbl" title="${k}">${k}</div>
+      <div class="bar-track"><div class="bar-fill ${fillClass}" style="width:${Math.round(v/max*100)}%"></div></div>
+      <div class="bar-n">${v}</div>
+      <div class="bar-pct">${Math.round(v/total*100)}%</div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════
+//  RENDER FUNCTIONS
+// ═══════════════════════════════════════
+function renderAll(){
+  if(curSection==='overview') renderOverview();
+  else if(curSection==='breakdown') renderBreakdown();
+  else if(curSection==='store') renderStore();
+  else if(curSection==='ec') renderEC();
+  else if(curSection==='trend') renderTrend();
+  else if(curSection==='cases') renderCasesSection();
+}
+
+function renderOverview(){
+  const chs=getChannels(), ms=getMonths();
+  const d=mergeData(chs,ms);
+
+  document.getElementById('kpiGrid').innerHTML=`
+    <div class="kpi blue"><div class="kpi-label">總瑕疵件數</div><div class="kpi-val blue">${d.total.toLocaleString()}</div><div class="kpi-sub">${chs.join('+')} / ${ms.join('+')}</div></div>
+    <div class="kpi red"><div class="kpi-label">最大不良原因</div><div class="kpi-val" style="font-size:15px;padding-top:4px;color:var(--accent)">${d.reasons[0]?d.reasons[0][0]:'—'}</div><div class="kpi-sub">${d.reasons[0]?d.reasons[0][2]+'%':''}</div></div>
+    <div class="kpi amber"><div class="kpi-label">不良原因種類</div><div class="kpi-val amber">${d.reasons.length}</div><div class="kpi-sub">類型</div></div>
+    <div class="kpi gray"><div class="kpi-label">最高退件型號</div><div class="kpi-val" style="font-size:14px;padding-top:5px;color:var(--text2)">${d.models[0]?d.models[0][0]:'—'}</div><div class="kpi-sub">${d.models[0]?d.models[0][2]+'%':''}</div></div>
+    <div class="kpi green"><div class="kpi-label">最高退件產品</div><div class="kpi-val" style="font-size:14px;padding-top:5px;color:var(--accent4)">${d.products[0]?d.products[0][0]:'—'}</div><div class="kpi-sub">${d.products[0]?d.products[0][2]+'%':''}</div></div>
+  `;
+
+  document.getElementById('reasonBars').innerHTML=makeBars(d.reasons);
+  document.getElementById('productBars').innerHTML=makeBars(d.products);
+  document.getElementById('modelBars').innerHTML=makeBars(d.models,10);
+  document.getElementById('storeBars').innerHTML=curCh==='ec'?'<p style="font-size:12px;color:var(--text3);font-style:italic">電商通路不追蹤門市來源</p>':makeBars(d.stores);
+}
+
+function renderBreakdown(){
+  const ms=getMonths(), chs=getChannels();
+  function mergeBD(src,ms){
+    const out={};
+    for(const m of ms){
+      const tab=src[m];
+      if(!tab) continue;
+      for(const [r,models] of Object.entries(tab)){
+        if(!out[r]) out[r]={};
+        for(const [model,n] of models) out[r][model]=(out[r][model]||0)+n;
+      }
+    }
+    return out;
+  }
+  let bd={};
+  if(chs.includes('store')){
+    const s=mergeBD(BREAKDOWN_STORE,ms);
+    for(const [r,models] of Object.entries(s)){
+      if(!bd[r]) bd[r]={};
+      for(const [m,n] of Object.entries(models)) bd[r][m]=(bd[r][m]||0)+n;
+    }
+  }
+  if(chs.includes('ec')){
+    const e=mergeBD(BREAKDOWN_EC,ms);
+    for(const [r,models] of Object.entries(e)){
+      if(!bd[r]) bd[r]={};
+      for(const [m,n] of Object.entries(models)) bd[r][m]=(bd[r][m]||0)+n;
+    }
+  }
+  const totals={};
+  for(const [r,models] of Object.entries(bd)) totals[r]=Object.values(models).reduce((s,n)=>s+n,0);
+  const top2=Object.entries(totals).sort((a,b)=>b[1]-a[1]).slice(0,2);
+  const grandTotal=Object.values(totals).reduce((s,n)=>s+n,0);
+
+  document.getElementById('rankCards').innerHTML=top2.map(([reason,total],i)=>{
+    const models=Object.entries(bd[reason]||{}).sort((a,b)=>b[1]-a[1]);
+    const fill=i===0?'fill-red':'fill-amber', rb=i===0?'rb1':'rb2';
+    return `
+    <div class="rank-card">
+      <div class="rank-head">
+        <div class="rank-badge ${rb}">第 ${i+1} 名</div>
+        <div class="rank-name">${reason}</div>
+        <div class="rank-sub">${total} 件 · 佔比 ${Math.round(total/grandTotal*100)}%</div>
+      </div>
+      <div class="rank-body">
+        <div class="rank-section-label">各型號件數（完整展開）</div>
+        ${makeBarsRaw(models,fill)}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderStore(){
+  const ms=getMonths();
+  const d=mergeData(['store'],ms);
+  document.getElementById('storeKpi').innerHTML=`
+    <div class="kpi blue"><div class="kpi-label">門市總退件</div><div class="kpi-val blue">${d.total.toLocaleString()}</div></div>
+    <div class="kpi red"><div class="kpi-label">最大不良原因</div><div class="kpi-val" style="font-size:14px;padding-top:4px;color:var(--accent)">${d.reasons[0]?d.reasons[0][0]:'—'}</div><div class="kpi-sub">${d.reasons[0]?d.reasons[0][2]+'%':''}</div></div>
+    <div class="kpi amber"><div class="kpi-label">最高型號</div><div class="kpi-val" style="font-size:14px;padding-top:4px;color:var(--accent2)">${d.models[0]?d.models[0][0]:'—'}</div><div class="kpi-sub">${d.models[0]?d.models[0][2]+'%':''}</div></div>
+    <div class="kpi green"><div class="kpi-label">最高門市</div><div class="kpi-val" style="font-size:14px;padding-top:4px;color:var(--accent4)">${d.stores[0]?d.stores[0][0]:'—'}</div><div class="kpi-sub">${d.stores[0]?d.stores[0][2]+'%':''}</div></div>
+    <div class="kpi gray"><div class="kpi-label">產品線種類</div><div class="kpi-val">${d.products.length}</div></div>
+  `;
+  document.getElementById('storeReasonBars').innerHTML=makeBars(d.reasons,10,'fill-red');
+  document.getElementById('storeStoreBars').innerHTML=makeBars(d.stores,10,'fill-blue');
+  document.getElementById('storeProductBars').innerHTML=makeBars(d.products,10,'fill-amber');
+  document.getElementById('storeModelBars').innerHTML=makeBars(d.models,10,'fill-green');
+}
+
+function renderEC(){
+  const ms=getMonths();
+  const d=mergeData(['ec'],ms);
+  document.getElementById('ecKpi').innerHTML=`
+    <div class="kpi green"><div class="kpi-label">電商總退件</div><div class="kpi-val green">${d.total.toLocaleString()}</div></div>
+    <div class="kpi red"><div class="kpi-label">最大不良原因</div><div class="kpi-val" style="font-size:14px;padding-top:4px;color:var(--accent)">${d.reasons[0]?d.reasons[0][0]:'—'}</div><div class="kpi-sub">${d.reasons[0]?d.reasons[0][2]+'%':''}</div></div>
+    <div class="kpi amber"><div class="kpi-label">最高型號</div><div class="kpi-val" style="font-size:14px;padding-top:4px;color:var(--accent2)">${d.models[0]?d.models[0][0]:'—'}</div><div class="kpi-sub">${d.models[0]?d.models[0][2]+'%':''}</div></div>
+    <div class="kpi blue"><div class="kpi-label">不良原因種類</div><div class="kpi-val blue">${d.reasons.length}</div></div>
+    <div class="kpi gray"><div class="kpi-label">產品線種類</div><div class="kpi-val">${d.products.length}</div></div>
+  `;
+  document.getElementById('ecReasonBars').innerHTML=makeBars(d.reasons,10,'fill-red');
+  document.getElementById('ecProductBars').innerHTML=makeBars(d.products,10,'fill-amber');
+  document.getElementById('ecModelBars').innerHTML=makeBars(d.models,10,'fill-green');
+}
+
+function renderTrend(){
+  const months=[...LOADED_MONTHS];
+  const mLabels=Object.fromEntries(TAB_CONFIG.map(t=>[t.key,t.label]));
+
+  // Summary cards
+  const cards=[];
+  for(let i=0;i<months.length-1;i++){
+    const m=months[i], m2=months[i+1];
+    const sC=Math.round((DATA.store[m2].total-DATA.store[m].total)/DATA.store[m].total*100);
+    const eC=Math.round((DATA.ec[m2].total-DATA.ec[m].total)/DATA.ec[m].total*100);
+    cards.push(`
+      <div class="trend-card">
+        <div class="trend-title">門市 ${mLabels[m]} → ${mLabels[m2]}</div>
+        <div class="trend-row"><span>總件數</span><span class="${sC<=0?'down':'up'}">${sC<=0?'↓':'↑'} ${Math.abs(sC)}%（${DATA.store[m].total} → ${DATA.store[m2].total}）</span></div>
+        <div class="trend-row"><span>最大不良</span><span style="color:var(--text2)">${DATA.store[m2].reasons[0]?DATA.store[m2].reasons[0][0]+' '+DATA.store[m2].reasons[0][2]+'%':'—'}</span></div>
+        <div class="trend-row"><span>最高型號</span><span style="color:var(--text2)">${DATA.store[m2].models[0]?DATA.store[m2].models[0][0]:'—'}</span></div>
+        <div class="trend-row"><span>最高門市</span><span style="color:var(--text2)">${DATA.store[m2].stores[0]?DATA.store[m2].stores[0][0]:'—'}</span></div>
+      </div>
+      <div class="trend-card">
+        <div class="trend-title">電商 ${mLabels[m]} → ${mLabels[m2]}</div>
+        <div class="trend-row"><span>總件數</span><span class="${eC<=0?'down':'up'}">${eC<=0?'↓':'↑'} ${Math.abs(eC)}%（${DATA.ec[m].total} → ${DATA.ec[m2].total}）</span></div>
+        <div class="trend-row"><span>最大不良</span><span style="color:var(--text2)">${DATA.ec[m2].reasons[0]?DATA.ec[m2].reasons[0][0]+' '+DATA.ec[m2].reasons[0][2]+'%':'—'}</span></div>
+        <div class="trend-row"><span>最高型號</span><span style="color:var(--text2)">${DATA.ec[m2].models[0]?DATA.ec[m2].models[0][0]:'—'}</span></div>
+      </div>`);
+  }
+  document.getElementById('trendGrid').innerHTML=cards.join('');
+
+  // Month comparison bars for store
+  const allSR=[...new Set(months.flatMap(m=>DATA.store[m].reasons.map(r=>r[0])))];
+  const sMaps=Object.fromEntries(months.map(m=>[m,Object.fromEntries(DATA.store[m].reasons.map(r=>[r[0],r[1]]))]));
+  const maxS=Math.max(...allSR.map(r=>Math.max(...months.map(m=>sMaps[m][r]||0))));
+  const monthColors=['fill-blue','fill-amber','fill-green'];
+  document.getElementById('storeMonthBars').innerHTML=allSR.slice(0,8).map(r=>`
+    <div class="month-grp">
+      <div class="month-grp-label">${r}</div>
+      ${months.map((m,i)=>`<div class="bar-row"><span class="month-tag">${mLabels[m]}</span><div class="bar-track"><div class="bar-fill ${monthColors[i]}" style="width:${Math.round((sMaps[m][r]||0)/maxS*100)}%"></div></div><div class="bar-n">${sMaps[m][r]||0}</div></div>`).join('')}
+    </div>`).join('');
+
+  const allER=[...new Set(months.flatMap(m=>DATA.ec[m].reasons.map(r=>r[0])))];
+  const eMaps=Object.fromEntries(months.map(m=>[m,Object.fromEntries(DATA.ec[m].reasons.map(r=>[r[0],r[1]]))]));
+  const maxE=Math.max(...allER.map(r=>Math.max(...months.map(m=>eMaps[m][r]||0))));
+  document.getElementById('ecMonthBars').innerHTML=allER.slice(0,8).map(r=>`
+    <div class="month-grp">
+      <div class="month-grp-label">${r}</div>
+      ${months.map((m,i)=>`<div class="bar-row"><span class="month-tag">${mLabels[m]}</span><div class="bar-track"><div class="bar-fill ${monthColors[i]}" style="width:${Math.round((eMaps[m][r]||0)/maxE*100)}%"></div></div><div class="bar-n">${eMaps[m][r]||0}</div></div>`).join('')}
+    </div>`).join('');
+}
+
+
+// ═══════════════════════════════════════
+//  CASES MODULE
+// ═══════════════════════════════════════
+const STORAGE_KEY = 'qc_cases_v2'; // 版本號更新，自動清除舊資料
+let cases = [];
+let newCaseImgData = [];
+let replyImgData = {};
+
+function loadCases(){
+  // Try current key first, then check older keys to recover lost data
+  try { cases = JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch(e){ cases=[]; }
+  if(!cases.length){
+    // Try to recover from previous storage key versions
+    const oldKeys = ['qc_cases_v1','qc_cases','qc_defect_cases'];
+    for(const k of oldKeys){
+      try {
+        const old = JSON.parse(localStorage.getItem(k)||'[]');
+        if(old.length){ cases = old; localStorage.setItem(STORAGE_KEY, JSON.stringify(cases)); break; }
+      } catch(e){}
+    }
+  }
+  // Migrate old QC-XXX format to date+seq format
+  let migrated = false;
+  cases.forEach(c => {
+    if(/^QC-\d{3}$/.test(c.id)){
+      const d = new Date(c.createdAt||Date.now());
+      const datePart = String(d.getFullYear())+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+      const seq = String(cases.filter(x=>x.id.startsWith(datePart)&&x.id!==c.id).length+1).padStart(3,'0');
+      c.id = datePart+seq;
+      migrated = true;
+    }
+  });
+  if(migrated) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cases)); } catch(e){} }
+}
+function saveCases(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cases)); } catch(e){}
+}
+loadCases();
+
+// Seed demo data if empty
+if(!cases.length){
+  const now = Date.now();
+  cases = [
+    {
+      id:'20260315001', title:'S-90 透明 16pro 浮邊大量退件', factory:'台灣光學科技',
+      reason:'浮邊（白邊）', sev:'high', product:'S-90 透明', qty:89, status:'replied',
+      desc:'1月批次 SA 通路退回 89 件，浮邊現象集中在 16pro/17pro 型號，比例高達 39%，懷疑膠合工序壓力不足。',
+      images:[], createdAt: now - 86400000*15,
+      timeline:[
+        {type:'system',author:'系統',text:'案件建立',time: now - 86400000*15, images:[]},
+        {type:'internal',author:'品管部',text:'已拍照記錄樣品，整理 15 件實物寄送工廠確認。',time: now - 86400000*13, images:[]},
+        {type:'factory',author:'台灣光學科技',text:'收到樣品，確認為熱壓工序溫度偏低（設定 65°C，實際量測 58°C），正在調整設備並重新驗證。預計 3 個工作天回覆改善結果。',time: now - 86400000*10, images:[]},
+        {type:'internal',author:'品管部',text:'工廠改善中，持續追蹤。要求提供完整製程改善報告（8D）。',time: now - 86400000*8, images:[]},
+        {type:'factory',author:'台灣光學科技',text:'8D 報告已完成，熱壓溫度已調整至 68°C 並鎖定，試產 200 件良率 99.5%，附上量測記錄。',time: now - 86400000*5, images:[]}
+      ]
+    },
+    {
+      id:'20260320001', title:'L-90 藍寶石鏡頭貼 鍍膜剝落', factory:'精密鍍膜廠',
+      reason:'鍍膜剝落', sev:'high', product:'L-90 藍寶石鏡頭貼', qty:13, status:'pending',
+      desc:'電商通路 1月接獲 10 件鍍膜剝落投訴，2月 3 件，疑似鍍膜附著力不足或耐候性測試標準未達。',
+      images:[], createdAt: now - 86400000*10,
+      timeline:[
+        {type:'system',author:'系統',text:'案件建立',time: now - 86400000*10, images:[]},
+        {type:'internal',author:'品管部',text:'已發送正式不符合報告（NCR）至精密鍍膜廠，要求 5 個工作天內回覆根因分析。',time: now - 86400000*9, images:[]},
+        {type:'internal',author:'採購部',text:'已知會採購評估備用供應商方案。',time: now - 86400000*7, images:[]}
+      ]
+    },
+    {
+      id:'20260325001', title:'入塵白點改善追蹤', factory:'捷安玻璃科技',
+      reason:'入塵（白點）', sev:'mid', product:'S-90 透明 / S-90 霧透', qty:337, status:'open',
+      desc:'1-3月門市退件中入塵（白點）合計達 379 件，為最大宗不良。懷疑潔淨室管控及作業員手部清潔不足。',
+      images:[], createdAt: now - 86400000*5,
+      timeline:[
+        {type:'system',author:'系統',text:'案件建立',time: now - 86400000*5, images:[]},
+        {type:'internal',author:'品管部',text:'整理各月份數據，入塵比例：1月 41%、2月 31%、3月 25%，有緩降趨勢但仍偏高，需要工廠提出系統性改善方案。',time: now - 86400000*4, images:[]}
+      ]
+    }
+  ];
+  saveCases();
+}
+
+const statusLabel = {open:'待處理', pending:'等待工廠回覆', replied:'工廠已回覆', resolved:'已解決', closed:'已關閉'};
+const statusClass = {open:'tag-open', pending:'tag-pending', replied:'tag-replied', resolved:'tag-resolved', closed:'tag-closed'};
+const sevLabel = {high:'高', mid:'中', low:'低'};
+const sevClass = {high:'sev-high', mid:'sev-mid', low:'sev-low'};
+const typeLabel = {factory:'工廠回覆', internal:'內部記錄', system:'系統'};
+
+function renderCasesSection(){
+  // KPI
+  const total = cases.length;
+  const open = cases.filter(c=>c.status==='open').length;
+  const pending = cases.filter(c=>c.status==='pending').length;
+  const replied = cases.filter(c=>c.status==='replied').length;
+  const resolved = cases.filter(c=>['resolved','closed'].includes(c.status)).length;
+  document.getElementById('casesKpi').innerHTML=`
+    <div class="kpi blue"><div class="kpi-label">總立案數</div><div class="kpi-val blue">${total}</div></div>
+    <div class="kpi red"><div class="kpi-label">待處理</div><div class="kpi-val red">${open}</div></div>
+    <div class="kpi amber"><div class="kpi-label">等待工廠回覆</div><div class="kpi-val amber">${pending}</div></div>
+    <div class="kpi blue" style="--kpi-accent:var(--accent3)"><div class="kpi-label">工廠已回覆</div><div class="kpi-val" style="color:var(--accent3)">${replied}</div></div>
+    <div class="kpi green"><div class="kpi-label">已解決/關閉</div><div class="kpi-val green">${resolved}</div></div>
+  `;
+  renderCases();
+}
+
+function renderCases(){
+  const q = (document.getElementById('caseSearch')||{}).value?.toLowerCase()||'';
+  const sf = (document.getElementById('caseStatusFilter')||{}).value||'';
+  const sevf = (document.getElementById('caseSevFilter')||{}).value||'';
+
+  let list = cases.filter(c=>{
+    const mq = !q||(c.id+c.title+c.factory+c.reason+c.desc).toLowerCase().includes(q);
+    const ms = !sf||c.status===sf;
+    const msev = !sevf||c.sev===sevf;
+    return mq&&ms&&msev;
+  }).sort((a,b)=>b.createdAt-a.createdAt);
+
+  const el = document.getElementById('caseList');
+  if(!list.length){
+    el.innerHTML=`<div class="empty-cases"><div class="empty-cases-icon">📋</div><div>目前沒有符合條件的案件</div></div>`;
+    return;
+  }
+  el.innerHTML = list.map(c=>renderCaseCard(c)).join('');
+}
+
+function renderCaseCard(c){
+  const dateStr = new Date(c.createdAt).toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});
+  const imgsHtml = (c.images||[]).map((img,i)=>`
+    <div class="case-img-wrap" onclick="openLightbox('${img}')">
+      <img src="${img}" alt="">
+      <button class="case-img-del" onclick="event.stopPropagation();delCaseImg('${c.id}',${i})">×</button>
+    </div>`).join('');
+
+  const tlHtml = c.timeline.map((t,ti)=>{
+    const canEdit = t.type!=='system';
+    const editedBadge = t.editedAt ? `<span class="tl-edited-badge">已編輯</span>` : '';
+    return `
+    <div class="timeline-item" id="tli-${c.id}-${ti}">
+      <div class="tl-line">
+        <div class="tl-dot ${t.type}"></div>
+        ${ti<c.timeline.length-1?'<div class="tl-connector"></div>':''}
+      </div>
+      <div class="tl-content">
+        <div class="tl-header">
+          <span class="tl-author">${t.author}</span>
+          ${canEdit?`<span class="tl-type ${t.type}">${typeLabel[t.type]}</span>`:''}
+          <span class="tl-time">${new Date(t.time).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+          ${editedBadge}
+          ${canEdit?`<button class="tl-edit-btn" onclick="startEditTimeline('${c.id}',${ti})">編輯</button><button class="tl-del-btn" onclick="deleteTimeline('${c.id}',${ti})">刪除</button>`:''}
+        </div>
+        <div class="tl-text" id="tlt-${c.id}-${ti}">${t.text}</div>
+        ${(t.images||[]).length?`<div class="tl-imgs">${t.images.map(img=>`<img class="tl-img" src="${img}" onclick="openLightbox('${img}')">`).join('')}</div>`:''}
+        <div class="tl-edit-box" id="tleb-${c.id}-${ti}" style="display:none">
+          <textarea id="tleta-${c.id}-${ti}">${t.text}</textarea>
+          <div class="tl-edit-actions">
+            <button class="tl-edit-save" onclick="saveEditTimeline('${c.id}',${ti})">儲存</button>
+            <button class="tl-edit-cancel" onclick="cancelEditTimeline('${c.id}',${ti})">取消</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const rImgs = replyImgData[c.id]||[];
+  const rImgPreview = rImgs.map(img=>`<img class="reply-img-thumb" src="${img}">`).join('');
+
+  return `
+  <div class="case-card" id="card-${c.id}">
+    <div class="case-card-head" onclick="toggleCase('${c.id}')">
+      <div class="case-card-left">
+        <div class="case-id">${c.id}</div>
+        <div class="case-title">${c.title}</div>
+        <div class="case-meta">
+          <span class="case-tag ${statusClass[c.status]}">${statusLabel[c.status]}</span>
+          <span class="case-severity ${sevClass[c.sev]}">嚴重度：${sevLabel[c.sev]}</span>
+          <span class="case-date" style="color:var(--text3)">${c.factory}</span>
+          <span class="case-date">${c.reason} · ${c.product} · ${c.qty}件</span>
+          <span class="case-date">建立 ${dateStr}</span>
+        </div>
+      </div>
+      <div class="case-card-actions" onclick="event.stopPropagation()">
+        <button class="btn-sm" onclick="editCaseStatus('${c.id}')">更新狀態</button>
+        <button class="btn-sm danger" onclick="deleteCase('${c.id}')">刪除</button>
+      </div>
+    </div>
+    <div class="case-body" id="body-${c.id}">
+      <div class="case-desc">${c.desc}</div>
+      ${(c.images||[]).length||true?`
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--text3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:8px">案件圖片</div>
+        <div class="case-images" id="imgs-${c.id}">
+          ${imgsHtml}
+          <button class="img-add-btn" title="新增圖片" onclick="triggerCaseImg('${c.id}')">＋</button>
+          <input type="file" id="caseimg-${c.id}" accept="image/*" multiple style="display:none" onchange="addCaseImgs('${c.id}')">
+        </div>
+      </div>`:''}
+      <div class="timeline">
+        <div class="timeline-title">處理歷程</div>
+        <div id="tl-${c.id}">${tlHtml}</div>
+        <div class="add-reply-box">
+          <div class="add-reply-label">新增記錄</div>
+          <div class="reply-type-row">
+            <button class="reply-type-btn sel" id="rtype-internal-${c.id}" onclick="selReplyType('${c.id}','internal')">內部記錄</button>
+            <button class="reply-type-btn" id="rtype-factory-${c.id}" onclick="selReplyType('${c.id}','factory')">工廠回覆</button>
+          </div>
+          <div id="rimgs-preview-${c.id}" class="reply-imgs-preview">${rImgPreview}</div>
+          <textarea class="reply-textarea" id="rtext-${c.id}" placeholder="輸入處理記錄或工廠回覆內容…"></textarea>
+          <div class="reply-footer">
+            <label class="reply-img-label" onclick="triggerReplyImg('${c.id}')">📎 附加圖片
+              <input type="file" id="replyimg-${c.id}" accept="image/*" multiple style="display:none" onchange="addReplyImgs('${c.id}')">
+            </label>
+            <button class="btn-reply" onclick="submitReply('${c.id}')">送出記錄</button>
+          </div>
+        </div>
+      </div>
+      <div class="status-row">
+        <span class="status-label">更新狀態：</span>
+        <select class="status-select" onchange="updateStatus('${c.id}',this.value)">
+          <option value="open" ${c.status==='open'?'selected':''}>待處理</option>
+          <option value="pending" ${c.status==='pending'?'selected':''}>等待工廠回覆</option>
+          <option value="replied" ${c.status==='replied'?'selected':''}>工廠已回覆</option>
+          <option value="resolved" ${c.status==='resolved'?'selected':''}>已解決</option>
+          <option value="closed" ${c.status==='closed'?'selected':''}>已關閉</option>
+        </select>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Track reply type per case
+const replyTypes = {};
+function selReplyType(id, type){
+  replyTypes[id]=type;
+  ['internal','factory'].forEach(t=>{
+    const btn=document.getElementById(`rtype-${t}-${id}`);
+    if(btn) btn.classList.toggle('sel',t===type);
+  });
+}
+
+function toggleCase(id){
+  const body=document.getElementById('body-'+id);
+  if(body) body.classList.toggle('open');
+}
+
+function openLightbox(src){ document.getElementById('lightboxImg').src=src; document.getElementById('lightbox').style.display='flex'; }
+
+function triggerCaseImg(id){ if(READ_ONLY) return; document.getElementById('caseimg-'+id)?.click(); }
+function triggerReplyImg(id){ document.getElementById('replyimg-'+id)?.click(); }
+
+function readFiles(files, cb){
+  const results=[]; let done=0;
+  if(!files.length){cb([]);return;}
+  for(const f of files){
+    const r=new FileReader();
+    r.onload=e=>{ results.push(e.target.result); if(++done===files.length) cb(results); };
+    r.readAsDataURL(f);
+  }
+}
+
+function addCaseImgs(id){ if(READ_ONLY) return;
+  const input=document.getElementById('caseimg-'+id);
+  readFiles([...input.files], imgs=>{
+    const c=cases.find(x=>x.id===id); if(!c) return;
+    c.images=[...(c.images||[]),...imgs]; saveCases();
+    const wrap=document.getElementById('imgs-'+id);
+    if(wrap){
+      const addBtn=wrap.querySelector('.img-add-btn');
+      imgs.forEach((img,i)=>{
+        const div=document.createElement('div'); div.className='case-img-wrap';
+        div.innerHTML=`<img src="${img}" alt=""><button class="case-img-del" onclick="event.stopPropagation();delCaseImg('${id}',${(c.images.length-imgs.length+i)})">×</button>`;
+        div.querySelector('img').onclick=()=>openLightbox(img);
+        wrap.insertBefore(div,addBtn);
+      });
+    }
+    input.value='';
+  });
+}
+
+function delCaseImg(id,idx){
+  const c=cases.find(x=>x.id===id); if(!c) return;
+  c.images.splice(idx,1); saveCases(); renderCases();
+}
+
+function addReplyImgs(id){ if(READ_ONLY) return;
+  const input=document.getElementById('replyimg-'+id);
+  readFiles([...input.files], imgs=>{
+    if(!replyImgData[id]) replyImgData[id]=[];
+    replyImgData[id].push(...imgs);
+    const preview=document.getElementById('rimgs-preview-'+id);
+    if(preview) preview.innerHTML=replyImgData[id].map(img=>`<img class="reply-img-thumb" src="${img}">`).join('');
+    input.value='';
+  });
+}
+
+function submitReply(id){ if(READ_ONLY) return;
+  const text=(document.getElementById('rtext-'+id)||{}).value?.trim()||'';
+  if(!text){ alert('請輸入記錄內容'); return; }
+  const type=replyTypes[id]||'internal';
+  const c=cases.find(x=>x.id===id); if(!c) return;
+  const imgs=replyImgData[id]||[];
+  c.timeline.push({type, author:type==='factory'?c.factory:'品管部', text, time:Date.now(), images:[...imgs]});
+  if(type==='factory' && !['resolved','closed'].includes(c.status)){
+    c.status='replied';
+    c.timeline.push({type:'system',author:'系統',text:'狀態自動更新為：工廠已回覆',time:Date.now(),images:[]});
+  }
+  replyImgData[id]=[];
+  saveCases();
+  renderCasesSection();
+  setTimeout(()=>{
+    const body=document.getElementById('body-'+id);
+    if(body) body.classList.add('open');
+  },50);
+}
+
+function updateStatus(id,status){ if(READ_ONLY) return;
+  const c=cases.find(x=>x.id===id); if(!c) return;
+  c.status=status;
+  c.timeline.push({type:'system',author:'系統',text:`狀態更新為：${statusLabel[status]}`,time:Date.now(),images:[]});
+  saveCases(); renderCasesSection();
+  setTimeout(()=>{ const body=document.getElementById('body-'+id); if(body) body.classList.add('open'); },50);
+}
+
+function editCaseStatus(id){ const body=document.getElementById('body-'+id); if(body) body.classList.add('open'); }
+
+function deleteCase(id){ if(READ_ONLY) return;
+  if(!confirm('確定刪除此案件？此操作無法復原。')) return;
+  cases=cases.filter(c=>c.id!==id); saveCases(); renderCasesSection();
+}
+
+// New case modal
+let newCaseCounter = cases.length+1;
+function openNewCase(){ if(READ_ONLY) return; newCaseImgData=[]; document.getElementById('nc_imgs_preview').innerHTML=''; document.getElementById('nc_title').value=''; document.getElementById('nc_factory').value=''; document.getElementById('nc_desc').value=''; document.getElementById('nc_qty').value='1'; document.getElementById('newCaseModal').style.display='flex'; }
+function closeNewCase(){ document.getElementById('newCaseModal').style.display='none'; }
+
+function previewNewCaseImgs(){
+  readFiles([...document.getElementById('nc_imgs').files], imgs=>{
+    newCaseImgData=[...newCaseImgData,...imgs];
+    document.getElementById('nc_imgs_preview').innerHTML=newCaseImgData.map(img=>`<img src="${img}" style="width:50px;height:50px;border-radius:5px;object-fit:cover;border:1px solid var(--border)">`).join('');
+    document.getElementById('nc_imgs').value='';
+  });
+}
+
+function submitNewCase(){
+  if(READ_ONLY) return;
+  const title=document.getElementById('nc_title').value.trim();
+  const factory=document.getElementById('nc_factory').value.trim();
+  if(!title||!factory){ alert('請填寫案件標題及工廠名稱'); return; }
+  const now_d=new Date();
+  const datePart=String(now_d.getFullYear())+String(now_d.getMonth()+1).padStart(2,'0')+String(now_d.getDate()).padStart(2,'0');
+  const sameDayCount=cases.filter(c=>c.id.startsWith(datePart)).length;
+  const id=datePart+String(sameDayCount+1).padStart(3,'0');
+  cases.unshift({
+    id, title, factory,
+    reason:document.getElementById('nc_reason').value,
+    sev:document.getElementById('nc_sev').value,
+    product:document.getElementById('nc_product').value.trim()||'—',
+    qty:parseInt(document.getElementById('nc_qty').value)||1,
+    desc:document.getElementById('nc_desc').value.trim(),
+    images:[...newCaseImgData],
+    status:'open',
+    createdAt:Date.now(),
+    timeline:[{type:'system',author:'系統',text:'案件建立',time:Date.now(),images:[]}]
+  });
+  newCaseImgData=[]; saveCases(); closeNewCase(); renderCasesSection();
+}
+
+// ── Timeline edit / delete functions ─────────────────────
+function startEditTimeline(caseId, idx){ if(READ_ONLY) return;
+  const eb = document.getElementById('tleb-'+caseId+'-'+idx);
+  const txt= document.getElementById('tlt-'+caseId+'-'+idx);
+  const ta = document.getElementById('tleta-'+caseId+'-'+idx);
+  if(!eb||!txt||!ta) return;
+  // Populate textarea with current text
+  const c = cases.find(x=>x.id===caseId);
+  if(c&&c.timeline[idx]) ta.value = c.timeline[idx].text;
+  txt.style.display='none';
+  eb.style.display='block';
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+
+function cancelEditTimeline(caseId, idx){
+  const eb = document.getElementById('tleb-'+caseId+'-'+idx);
+  const txt= document.getElementById('tlt-'+caseId+'-'+idx);
+  if(!eb||!txt) return;
+  eb.style.display='none';
+  txt.style.display='block';
+}
+
+function saveEditTimeline(caseId, idx){ if(READ_ONLY) return;
+  const ta = document.getElementById('tleta-'+caseId+'-'+idx);
+  if(!ta) return;
+  const newText = ta.value.trim();
+  if(!newText){ alert('內容不可為空'); return; }
+  const c = cases.find(x=>x.id===caseId);
+  if(!c||!c.timeline[idx]) return;
+  c.timeline[idx].text = newText;
+  c.timeline[idx].editedAt = Date.now();
+  saveCases();
+  // Update DOM in place without full re-render (preserve open state)
+  const txt = document.getElementById('tlt-'+caseId+'-'+idx);
+  const eb  = document.getElementById('tleb-'+caseId+'-'+idx);
+  const hdr = document.querySelector('#tli-'+caseId+'-'+idx+' .tl-header');
+  if(txt) txt.textContent = newText;
+  if(eb)  eb.style.display='none';
+  if(txt) txt.style.display='block';
+  // Add/update edited badge in header
+  if(hdr){
+    let badge = hdr.querySelector('.tl-edited-badge');
+    if(!badge){
+      badge = document.createElement('span');
+      badge.className='tl-edited-badge';
+      // Insert before edit button
+      const editBtn = hdr.querySelector('.tl-edit-btn');
+      if(editBtn) hdr.insertBefore(badge, editBtn);
+      else hdr.appendChild(badge);
+    }
+    badge.textContent='已編輯';
+  }
+  // Update KPI counts (status may not have changed but refresh is safe)
+  renderCasesSection();
+  setTimeout(()=>{ const body=document.getElementById('body-'+caseId); if(body) body.classList.add('open'); },50);
+}
+
+function deleteTimeline(caseId, idx){ if(READ_ONLY) return;
+  if(!confirm('確定刪除這筆記錄？')) return;
+  const c = cases.find(x=>x.id===caseId);
+  if(!c||!c.timeline[idx]) return;
+  // Do not allow deleting system entries for safety
+  if(c.timeline[idx].type==='system'){ alert('系統記錄不可刪除'); return; }
+  c.timeline.splice(idx,1);
+  saveCases();
+  renderCasesSection();
+  setTimeout(()=>{ const body=document.getElementById('body-'+caseId); if(body) body.classList.add('open'); },50);
+}
+
+// ── 環境偵測：本機 = 可編輯，GitHub Pages = 唯讀 ─────────────
+// 自動判斷，不需手動修改任何設定
+const READ_ONLY = (() => {
+  const h = window.location.hostname;
+  // file:// protocol = local = editable
+  if(window.location.protocol === 'file:') return false;
+  // localhost or 127.0.0.1 = local dev = editable
+  if(h === 'localhost' || h === '127.0.0.1') return false;
+  // everything else (github.io, netlify, etc.) = read-only
+  return true;
+})();
+
+function applyReadOnly(){
+  if(READ_ONLY) document.body.classList.add('readonly');
+}
+
+// Init — 載入 Google Sheets 資料
+applyReadOnly();
+fetchAllData();
+</script>
+</body>
+</html>
